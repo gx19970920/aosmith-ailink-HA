@@ -1,0 +1,37 @@
+# Local reverse-engineering material (may contain embedded credentials)
+/apk_analysis/
+*.apk
+*.dex
+*.bks
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+# Local credentials and Home Assistant runtime data
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.yml
+configuration.yaml
+.storage/
+.homeassistant/
+*.log
+*.har
+*.pcap
+*.pcapng
+*.db
+*.sqlite*
+# Local tooling and generated files
+.agents/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
