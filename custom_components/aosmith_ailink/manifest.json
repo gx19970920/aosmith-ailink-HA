@@ -1,0 +1,12 @@
+{
+  "domain": "aosmith_ailink",
+  "name": "A. O. Smith AILink",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/gx19970920/aosmith-ailink-HA",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/gx19970920/aosmith-ailink-HA/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "A. O. Smith AILink",
+        "description": "Configure the China A. O. Smith remote control cloud. Token mode is recommended. mobile, user_id, family_id, and device_id are required for control commands.",
+        "data": {
+          "base_url": "Base URL",
+          "access_token": "Access token",
+          "mobile": "Mobile number",
+          "username": "Login mobile number",
+          "password": "Password",
+          "user_id": "User ID",
+          "family_id": "Family ID",
+          "device_id": "Device ID",
+          "scan_interval": "Scan interval",
+          "verify_ssl": "Verify SSL"
+        }
+      }
+    },
+    "error": {
+      "auth_required": "Enter either an access token or login mobile number.",
+      "invalid_url": "Enter a valid http or https URL."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "current_temperature": {
+        "name": "Current temperature"
+      },
+      "target_temperature": {
+        "name": "Target temperature"
+      }
+    }
+  }
+}

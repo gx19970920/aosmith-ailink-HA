@@ -1,0 +1,58 @@
+invoke_method:
+  name: Invoke device method
+  description: Send a raw /device/invokeMethod command to an A. O. Smith device.
+  fields:
+    device_id:
+      name: Device ID
+      description: AILink deviceId. Optional when device_id is configured in the integration.
+      required: true
+      selector:
+        text:
+    method:
+      name: Method
+      description: Cloud method name to invoke, for example SetTemperature or SetHeatingOnOff.
+      required: true
+      selector:
+        text:
+    params:
+      name: Params
+      description: JSON object sent as params.
+      required: false
+      selector:
+        object:
+set_heating:
+  name: Set heating
+  description: Turn the wall-hung boiler heating function on or off.
+  fields:
+    device_id:
+      name: Device ID
+      description: Optional when device_id is configured in the integration.
+      required: false
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      description: true turns heating on, false turns heating off.
+      required: true
+      selector:
+        boolean:
+start_one_key_quick_wash:
+  name: Start one-key quick wash
+  description: Start one-key quick wash using SetCruiseOnOff CommandValue 1.
+  fields:
+    device_id:
+      name: Device ID
+      description: Optional when device_id is configured in the integration.
+      required: false
+      selector:
+        text:
+start_24h_quick_wash:
+  name: Start 24-hour quick wash
+  description: Start 24-hour quick wash using SetCruiseOnOff CommandValue 2.
+  fields:
+    device_id:
+      name: Device ID
+      description: Optional when device_id is configured in the integration.
+      required: false
+      selector:
+        text:
