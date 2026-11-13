@@ -200,6 +200,29 @@ class AOSmithClient:
             },
         )
 
+    async def async_set_heating_temperature(
+        self,
+        device_id: str,
+        temperature: int | float,
+        *,
+        product_type: str = "24",
+        device_type: str | None = None,
+    ) -> dict[str, Any]:
+        """Set heating-water target temperature."""
+
+        return await self.async_invoke_method(
+            device_id,
+            "SetTemperature",
+            {
+                "productType": product_type,
+                "deviceType": device_type,
+                "inputData": {
+                    "CommandValue": str(int(temperature)),
+                    "CommandType": "1",
+                },
+            },
+        )
+
     async def async_set_heating_enabled(
         self,
         device_id: str,
@@ -325,6 +348,7 @@ class AOSmithClient:
         *,
         json: Mapping[str, Any] | None = None,
         auth: bool = True,
+        retry: bool = False,
     ) -> dict[str, Any]:
         """Send a JSON request and normalize common response envelopes."""
 
@@ -339,33 +363,51 @@ class AOSmithClient:
             headers["token"] = self._access_token
 
         url = f"{self._base_url}{path}"
+        timeout_sec = self._timeout.total or 20
         try:
-            async with asyncio.timeout(self._timeout.total or 20):
+            async with asyncio.timeout(timeout_sec):
                 response = await self._session.request(
                     method,
                     url,
                     headers=headers,
                     json=dict(json or {}),
                     ssl=self._verify_ssl,
-                    timeout=self._timeout,
                 )
                 text = await response.text()
+                if response.status in (401, 403) and auth and self._username and self._password and not retry:
+                    _LOGGER.info("AILink access token expired (HTTP %s), attempting re-login...", response.status)
+                    await self.async_login()
+                    return await self._request(method, path, json=json, auth=auth, retry=True)
                 if response.status >= 400:
-                    raise AOSmithApiError(f"{path} HTTP {response.status}")
+                    raise AOSmithApiError(f"{path} HTTP {response.status}: {text[:300]}")
                 try:
                     data = await response.json(content_type=None)
                 except ValueError as err:
-                    raise AOSmithApiError(f"{path} returned non-JSON") from err
+                    raise AOSmithApiError(f"{path} returned non-JSON: {text[:300]}") from err
         except (TimeoutError, ClientError) as err:
-            raise AOSmithApiError(f"{path} request failed ({type(err).__name__})") from err
+            raise AOSmithApiError(f"{path} request failed: {err}") from err
 
         if not isinstance(data, dict):
             raise AOSmithApiError(f"{path} returned unexpected payload: {type(data).__name__}")
 
         code = _find_first(data, ("code", "status", "resultCode"))
         if code not in (None, 0, "0", 200, "200", True):
-            raise AOSmithApiError(f"{path} returned an unsuccessful status")
-        _LOGGER.debug("AILink %s request completed", path)
+            message = str(_find_first(data, ("message", "msg", "error", "errorMsg")) or data)
+            if (
+                auth
+                and self._username
+                and self._password
+                and not retry
+                and any(t in message.lower() for t in ("token", "未登录", "unauthorized", "expired", "invalid"))
+            ):
+                _LOGGER.info("AILink token rejected (%s: %s), attempting re-login...", code, message)
+                try:
+                    await self.async_login()
+                    return await self._request(method, path, json=json, auth=auth, retry=True)
+                except Exception as login_err:
+                    _LOGGER.warning("Automatic re-login failed: %s", login_err)
+            raise AOSmithApiError(f"{path} returned {code}: {message}")
+        _LOGGER.debug("AILink %s response: %s", path, data)
         return data
 
 

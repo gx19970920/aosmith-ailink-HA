@@ -15,6 +15,27 @@ from .coordinator import AOSmithCoordinator
 from .entity import AOSmithEntity
 
 
+HEATING_STATE_KEYS = (
+    "centralHeating",
+    "SHC_On",
+    "heatingMode",
+    "centralHeatingMode",
+    "heatingOnOff",
+    "heatOnOff",
+    "heatingEnabled",
+    "heatEnabled",
+    "heatingSwitch",
+    "heatSwitch",
+    "heatingStatus",
+    "heatStatus",
+    "heating",
+    "isHeatingOn",
+    "CHOnOff",
+    "chOnOff",
+    "warmStatus",
+)
+
+
 def _lookup(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
     lowered = {str(key).lower(): value for key, value in raw.items()}
     for key in keys:
@@ -25,12 +46,32 @@ def _lookup(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
     return None
 
 
+def _coerce_optional_bool(value: Any) -> bool | None:
+    """Coerce common cloud on/off values."""
+
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "on", "open", "enabled", "enable", "yes", "y"}:
+        return True
+    if text in {"0", "false", "off", "closed", "disabled", "disable", "no", "n"}:
+        return False
+    return None
+
+
 @dataclass(frozen=True, kw_only=True)
 class AOSmithQuickWashSwitchDescription(SwitchEntityDescription):
     """Description for a quick-wash switch."""
 
     command_value: str
 
+
+HEATING_SWITCH = SwitchEntityDescription(
+    key="heating_mode",
+    name="采暖开关",
+)
 
 QUICK_WASH_SWITCHES = (
     AOSmithQuickWashSwitchDescription(
@@ -55,10 +96,78 @@ async def async_setup_entry(
 
     coordinator: AOSmithCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
-        AOSmithQuickWashSwitch(coordinator, device_id, description)
-        for device_id in coordinator.data
-        for description in QUICK_WASH_SWITCHES
+        [AOSmithHeatingSwitch(coordinator, device_id) for device_id in coordinator.data]
+        + [
+            AOSmithQuickWashSwitch(coordinator, device_id, description)
+            for device_id in coordinator.data
+            for description in QUICK_WASH_SWITCHES
+        ]
     )
+
+
+HEATING_STATE_ATTRS = (
+    "centralHeating",
+    "SHC_On",
+    "heatingMode",
+    "centralHeatingMode",
+    "heatingOnOff",
+    "heatOnOff",
+    "heatingEnabled",
+    "heatEnabled",
+    "heatingSwitch",
+    "heatSwitch",
+    "heatingStatus",
+    "heatStatus",
+    "heating",
+    "isHeatingOn",
+    "CHOnOff",
+    "chOnOff",
+    "warmStatus",
+)
+
+
+class AOSmithHeatingSwitch(AOSmithEntity, SwitchEntity):
+    """Switch for the boiler heating function."""
+
+    entity_description = HEATING_SWITCH
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether heating mode is active."""
+
+        if not self.device:
+            return None
+        return _coerce_optional_bool(_lookup(self.device.raw, HEATING_STATE_KEYS))
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on heating mode."""
+
+        await self.coordinator.client.async_set_heating_enabled(
+            self.device_id,
+            True,
+            product_type=_product_type(self.device.raw) if self.device else "24",
+            device_type=_device_type(self.device.raw) if self.device else None,
+        )
+        self.coordinator.async_update_device_cache(
+            self.device_id,
+            {attr: "1" for attr in HEATING_STATE_ATTRS},
+        )
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off heating mode."""
+
+        await self.coordinator.client.async_set_heating_enabled(
+            self.device_id,
+            False,
+            product_type=_product_type(self.device.raw) if self.device else "24",
+            device_type=_device_type(self.device.raw) if self.device else None,
+        )
+        self.coordinator.async_update_device_cache(
+            self.device_id,
+            {attr: "0" for attr in HEATING_STATE_ATTRS},
+        )
+        await self.coordinator.async_request_refresh()
 
 
 class AOSmithQuickWashSwitch(AOSmithEntity, SwitchEntity):
@@ -98,6 +207,10 @@ class AOSmithQuickWashSwitch(AOSmithEntity, SwitchEntity):
             product_type=_product_type(self.device.raw) if self.device else "24",
             device_type=_device_type(self.device.raw) if self.device else None,
         )
+        self.coordinator.async_update_device_cache(
+            self.device_id,
+            {"preWork": self.entity_description.command_value, "prework": self.entity_description.command_value},
+        )
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -109,6 +222,10 @@ class AOSmithQuickWashSwitch(AOSmithEntity, SwitchEntity):
             self.device_id,
             product_type=_product_type(self.device.raw) if self.device else "24",
             device_type=_device_type(self.device.raw) if self.device else None,
+        )
+        self.coordinator.async_update_device_cache(
+            self.device_id,
+            {"preWork": "0", "prework": "0"},
         )
         await self.coordinator.async_request_refresh()
 
