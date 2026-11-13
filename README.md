@@ -89,6 +89,15 @@ Only one quick-wash mode can be active. Turning on one mode sends
 as off after the next refresh. Turning either switch off sends
 `SetCruiseOnOff` with `CommandValue: "0"`.
 
+## v0.2.0 更新亮点
+
+- **防状态弹回机制**：重构 Coordinator 乐观状态管理，在操作开关或修改设定温度后提供 30 秒平滑过渡期，彻底解决云端上报延迟导致的前端状态瞬间回弹。
+- **采暖实体完善**：采暖温控实体（`space_heating`）现已原生支持 `HVACMode.HEAT` 与 `HVACMode.OFF`，可直接在温控卡片上开/关采暖。
+- **统计图表支持**：为采暖水压（bar）、出回水温度、生活热水温度、流量及燃烧时间补充标准 `device_class` 与 `state_class`，支持 Home Assistant 长期统计与历史曲线。
+- **动态选项流（Options Flow）**：支持在集成界面直接热更新轮询频率及 Access Token，无需重装集成。
+- **凭证过期自动重连**：当使用账号密码模式且 Token 失效时，客户端自动完成登录换票并无缝重试指令。
+- **中文语言包**：新增 `zh-Hans` 本地化翻译。
+
 ## 隐私与云端备份
 
 本仓库包含完整 Home Assistant 集成源码与使用文档。账号、手机号、密码、

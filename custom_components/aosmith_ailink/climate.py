@@ -1,7 +1,8 @@
-"""Climate entity for A. O. Smith wall-hung boilers."""
+"""Climate entities for A. O. Smith wall-hung boilers."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.climate import ClimateEntity, ClimateEntityDescription
@@ -19,6 +20,27 @@ from .coordinator import AOSmithCoordinator
 from .entity import AOSmithEntity
 
 
+HEATING_STATE_KEYS = (
+    "centralHeating",
+    "SHC_On",
+    "heatingMode",
+    "centralHeatingMode",
+    "heatingOnOff",
+    "heatOnOff",
+    "heatingEnabled",
+    "heatEnabled",
+    "heatingSwitch",
+    "heatSwitch",
+    "heatingStatus",
+    "heatStatus",
+    "heating",
+    "isHeatingOn",
+    "CHOnOff",
+    "chOnOff",
+    "warmStatus",
+)
+
+
 def _lookup(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
     lowered = {str(key).lower(): value for key, value in raw.items()}
     for key in keys:
@@ -29,6 +51,121 @@ def _lookup(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
     return None
 
 
+def _coerce_optional_bool(value: Any) -> bool | None:
+    """Coerce common cloud on/off values."""
+
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "on", "open", "enabled", "enable", "yes", "y"}:
+        return True
+    if text in {"0", "false", "off", "closed", "disabled", "disable", "no", "n"}:
+        return False
+    return None
+
+
+@dataclass(frozen=True, kw_only=True)
+class AOSmithClimateDescription(ClimateEntityDescription):
+    """Description for a boiler climate function."""
+
+    command_type: str
+    current_temperature_keys: tuple[str, ...]
+    target_temperature_keys: tuple[str, ...]
+    min_temperature_keys: tuple[str, ...]
+    max_temperature_keys: tuple[str, ...]
+    fallback_min_temp: float
+    fallback_max_temp: float
+    supports_hvac_mode: bool = False
+
+
+CLIMATES = (
+    AOSmithClimateDescription(
+        key="hot_water",
+        name="热水",
+        command_type="0",
+        current_temperature_keys=("waterOutTEMP", "currentTemp", "currTemp", "roomTemp", "temperature"),
+        target_temperature_keys=("waterTEMP", "targetTemp", "setTemp", "temperatureSet", "heatTemp"),
+        min_temperature_keys=("waterTempSetMin",),
+        max_temperature_keys=("waterTempSetMax",),
+        fallback_min_temp=35,
+        fallback_max_temp=60,
+    ),
+    AOSmithClimateDescription(
+        key="space_heating",
+        name="采暖",
+        command_type="1",
+        current_temperature_keys=(
+            "heatingOutTEMP",
+            "heatOutTEMP",
+            "chOutTEMP",
+            "CHOutTEMP",
+            "heatingOutletTEMP",
+            "heatingOutletTemp",
+            "heatingSupplyTEMP",
+            "heatingSupplyTemp",
+            "heatingWaterOutTEMP",
+            "heatingWaterOutTemp",
+            "heatWaterOutTEMP",
+            "heatWaterOutTemp",
+            "warmOutTEMP",
+            "warmOutTemp",
+            "outWaterTemp",
+            "supplyWaterTemp",
+            "heatingCurrentTemp",
+            "heatCurrentTemp",
+            "roomTemp",
+        ),
+        target_temperature_keys=(
+            "heatingTEMP",
+            "heatingTemp",
+            "heatTEMP",
+            "heatTemp",
+            "heatingWaterTEMP",
+            "heatingWaterTemp",
+            "heatWaterTEMP",
+            "heatWaterTemp",
+            "warmTemp",
+            "shcSetTemp",
+            "chTEMP",
+            "CHTEMP",
+            "chTemp",
+            "CHTemp",
+            "heatingSetTEMP",
+            "heatSetTEMP",
+            "chSetTEMP",
+            "CHSetTEMP",
+            "heatingSetTemp",
+            "heatSetTemp",
+            "heatingTempSet",
+            "heatTempSet",
+            "heatingTargetTemp",
+            "heatTargetTemp",
+        ),
+        min_temperature_keys=(
+            "warmTempSetMin",
+            "heatingTempSetMin",
+            "heatTempSetMin",
+            "chTempSetMin",
+            "CHTempSetMin",
+            "SHC_OutputMinTemp",
+        ),
+        max_temperature_keys=(
+            "warmTempSetMax",
+            "warmAllowMaxSetTemp",
+            "heatingTempSetMax",
+            "heatTempSetMax",
+            "chTempSetMax",
+            "CHTempSetMax",
+        ),
+        fallback_min_temp=30,
+        fallback_max_temp=80,
+        supports_hvac_mode=True,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -37,33 +174,63 @@ async def async_setup_entry(
     """Set up climate entities."""
 
     coordinator: AOSmithCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(AOSmithBoilerClimate(coordinator, device_id) for device_id in coordinator.data)
+    async_add_entities(
+        AOSmithBoilerClimate(coordinator, device_id, description)
+        for device_id in coordinator.data
+        for description in CLIMATES
+    )
 
 
 class AOSmithBoilerClimate(AOSmithEntity, ClimateEntity):
-    """Best-effort wall-hung boiler climate entity."""
+    """Wall-hung boiler climate entity."""
 
-    entity_description = ClimateEntityDescription(key="climate", name=None)
-    _attr_hvac_modes = [HVACMode.HEAT]
+    entity_description: AOSmithClimateDescription
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 1
 
+    def __init__(
+        self,
+        coordinator: AOSmithCoordinator,
+        device_id: str,
+        description: AOSmithClimateDescription,
+    ) -> None:
+        self.entity_description = description
+        self._optimistic_hvac_mode: HVACMode | None = None
+        self._optimistic_target_temperature: float | None = None
+        super().__init__(coordinator, device_id)
+        if description.key == "hot_water":
+            self._attr_has_entity_name = False
+
+    @property
+    def hvac_modes(self) -> list[HVACMode]:
+        """Return supported HVAC modes."""
+
+        if self.entity_description.supports_hvac_mode:
+            return [HVACMode.OFF, HVACMode.HEAT]
+        return [HVACMode.HEAT]
+
     @property
     def min_temp(self) -> float:
-        """Return minimum domestic hot-water temperature."""
+        """Return minimum target temperature."""
 
         if not self.device:
-            return 35
-        return _as_float(_lookup(self.device.raw, ("waterTempSetMin",))) or 35
+            return self.entity_description.fallback_min_temp
+        return (
+            _as_float(_lookup(self.device.raw, self.entity_description.min_temperature_keys))
+            or self.entity_description.fallback_min_temp
+        )
 
     @property
     def max_temp(self) -> float:
-        """Return maximum domestic hot-water temperature."""
+        """Return maximum target temperature."""
 
         if not self.device:
-            return 60
-        return _as_float(_lookup(self.device.raw, ("waterTempSetMax",))) or 60
+            return self.entity_description.fallback_max_temp
+        return (
+            _as_float(_lookup(self.device.raw, self.entity_description.max_temperature_keys))
+            or self.entity_description.fallback_max_temp
+        )
 
     @property
     def current_temperature(self) -> float | None:
@@ -71,7 +238,7 @@ class AOSmithBoilerClimate(AOSmithEntity, ClimateEntity):
 
         if not self.device:
             return None
-        value = _lookup(self.device.raw, ("waterOutTEMP", "currentTemp", "currTemp", "roomTemp", "temperature"))
+        value = _lookup(self.device.raw, self.entity_description.current_temperature_keys)
         return _as_float(value)
 
     @property
@@ -80,27 +247,88 @@ class AOSmithBoilerClimate(AOSmithEntity, ClimateEntity):
 
         if not self.device:
             return None
-        value = _lookup(self.device.raw, ("waterTEMP", "targetTemp", "setTemp", "temperatureSet", "heatTemp"))
-        return _as_float(value)
+        value = _lookup(self.device.raw, self.entity_description.target_temperature_keys)
+        if value is not None:
+            return _as_float(value)
+        if self._optimistic_target_temperature is not None:
+            return self._optimistic_target_temperature
+        if self.entity_description.supports_hvac_mode:
+            return self.current_temperature or self.entity_description.fallback_min_temp
+        return None
 
     @property
-    def hvac_mode(self) -> HVACMode:
+    def hvac_mode(self) -> HVACMode | None:
         """Return HVAC mode."""
 
-        return HVACMode.HEAT
+        if not self.entity_description.supports_hvac_mode:
+            return HVACMode.HEAT
+        if not self.device:
+            return self._optimistic_hvac_mode or HVACMode.HEAT
+        enabled = _coerce_optional_bool(_lookup(self.device.raw, HEATING_STATE_KEYS))
+        if enabled is None:
+            return self._optimistic_hvac_mode or HVACMode.HEAT
+        return HVACMode.HEAT if enabled else HVACMode.OFF
 
-    async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Set target temperature through the raw invoke endpoint."""
+    async def async_turn_on(self) -> None:
+        """Turn heating mode on."""
 
-        if ATTR_TEMPERATURE not in kwargs:
+        if self.entity_description.supports_hvac_mode:
+            await self.async_set_hvac_mode(HVACMode.HEAT)
+
+    async def async_turn_off(self) -> None:
+        """Turn heating mode off."""
+
+        if self.entity_description.supports_hvac_mode:
+            await self.async_set_hvac_mode(HVACMode.OFF)
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        """Set heating mode on or off."""
+
+        if not self.entity_description.supports_hvac_mode:
             return
-        await self.coordinator.client.async_set_water_temperature(
+        if hvac_mode not in (HVACMode.OFF, HVACMode.HEAT):
+            return
+        await self.coordinator.client.async_set_heating_enabled(
             self.device_id,
-            kwargs[ATTR_TEMPERATURE],
+            hvac_mode == HVACMode.HEAT,
             product_type=_product_type(self.device.raw) if self.device else "24",
             device_type=_device_type(self.device.raw) if self.device else None,
         )
+        self._optimistic_hvac_mode = hvac_mode
+        val_str = "1" if hvac_mode == HVACMode.HEAT else "0"
+        self.coordinator.async_update_device_cache(
+            self.device_id,
+            {key: val_str for key in HEATING_STATE_KEYS},
+        )
         await self.coordinator.async_request_refresh()
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        """Set target temperature through the app-style invoke endpoint."""
+
+        if ATTR_TEMPERATURE not in kwargs:
+            return
+        temperature = float(kwargs[ATTR_TEMPERATURE])
+        product_type = _product_type(self.device.raw) if self.device else "24"
+        device_type = _device_type(self.device.raw) if self.device else None
+        if self.entity_description.command_type == "1":
+            await self.coordinator.client.async_set_heating_temperature(
+                self.device_id,
+                temperature,
+                product_type=product_type,
+                device_type=device_type,
+            )
+        else:
+            await self.coordinator.client.async_set_water_temperature(
+                self.device_id,
+                temperature,
+                product_type=product_type,
+                device_type=device_type,
+            )
+        self._optimistic_target_temperature = temperature
+        updates = {key: temperature for key in self.entity_description.target_temperature_keys}
+        self.coordinator.async_update_device_cache(self.device_id, updates)
+        await self.coordinator.async_request_refresh()
+
 
 def _as_float(value: Any) -> float | None:
     """Coerce a number."""

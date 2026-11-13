@@ -23,13 +23,63 @@
       "invalid_url": "Enter a valid http or https URL."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "A. O. Smith AILink Options",
+        "description": "Adjust integration settings and token.",
+        "data": {
+          "scan_interval": "Scan interval (seconds)",
+          "access_token": "Access token (leave blank to keep current)",
+          "verify_ssl": "Verify SSL"
+        }
+      }
+    }
+  },
   "entity": {
+    "climate": {
+      "hot_water": {
+        "name": "Hot water"
+      },
+      "space_heating": {
+        "name": "Space heating"
+      }
+    },
     "sensor": {
-      "current_temperature": {
+      "heating_water_pressure": {
+        "name": "Heating water pressure"
+      },
+      "co_concentration": {
+        "name": "CO concentration"
+      },
+      "heating_outlet_temperature": {
+        "name": "Heating outlet temperature"
+      },
+      "heating_return_temperature": {
+        "name": "Heating return temperature"
+      },
+      "domestic_hot_water_current_temperature": {
         "name": "Current temperature"
       },
-      "target_temperature": {
+      "domestic_hot_water_target_temperature": {
         "name": "Target temperature"
+      },
+      "domestic_hot_water_flow_rate": {
+        "name": "Domestic hot-water flow rate"
+      },
+      "cumulative_burning_time": {
+        "name": "Cumulative burning time"
+      }
+    },
+    "switch": {
+      "heating_mode": {
+        "name": "Heating switch"
+      },
+      "one_key_quick_wash": {
+        "name": "One-key quick wash"
+      },
+      "quick_wash_24h": {
+        "name": "24-hour quick wash"
       }
     }
   }

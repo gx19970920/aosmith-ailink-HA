@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "AO 史密斯 AI-link 智慧家",
+        "description": "配置 AO 史密斯壁挂炉云端控制。推荐优先使用 Token 模式。控制指令必须配置手机号、用户 ID (user_id)、家庭 ID (family_id) 和设备 ID (device_id)。",
+        "data": {
+          "base_url": "云端 API 地址",
+          "access_token": "访问凭证 (Access Token)",
+          "mobile": "注册手机号",
+          "username": "登录账号 (手机号)",
+          "password": "登录密码",
+          "user_id": "用户 ID (user_id)",
+          "family_id": "家庭 ID (family_id)",
+          "device_id": "设备 ID (device_id)",
+          "scan_interval": "轮询更新间隔 (秒)",
+          "verify_ssl": "验证 SSL 证书"
+        }
+      }
+    },
+    "error": {
+      "auth_required": "请至少提供访问凭证 (Access Token) 或账号密码中的一种。",
+      "invalid_url": "请输入有效的 http 或 https API 地址。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "AO 史密斯 AI-link 选项设置",
+        "description": "调整轮询频率或更新已失效的 Access Token。",
+        "data": {
+          "scan_interval": "轮询更新间隔 (秒)",
+          "access_token": "更新访问凭证 (Access Token，留空保持当前)",
+          "verify_ssl": "验证 SSL 证书"
+        }
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "hot_water": {
+        "name": "生活热水"
+      },
+      "space_heating": {
+        "name": "采暖"
+      }
+    },
+    "sensor": {
+      "heating_water_pressure": {
+        "name": "采暖水压"
+      },
+      "co_concentration": {
+        "name": "CO 浓度"
+      },
+      "heating_outlet_temperature": {
+        "name": "采暖出水温度"
+      },
+      "heating_return_temperature": {
+        "name": "采暖回水温度"
+      },
+      "domestic_hot_water_current_temperature": {
+        "name": "当前热水温度"
+      },
+      "domestic_hot_water_target_temperature": {
+        "name": "设定热水温度"
+      },
+      "domestic_hot_water_flow_rate": {
+        "name": "生活热水流量"
+      },
+      "cumulative_burning_time": {
+        "name": "累计燃烧时间"
+      }
+    },
+    "switch": {
+      "heating_mode": {
+        "name": "采暖开关"
+      },
+      "one_key_quick_wash": {
+        "name": "一键速热洗"
+      },
+      "quick_wash_24h": {
+        "name": "24小时速热洗"
+      }
+    }
+  }
+}

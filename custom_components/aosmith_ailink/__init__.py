@@ -44,47 +44,63 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         device_id = _device_id_from_call(call, coordinator)
         method = call.data["method"]
         params = call.data.get("params") or {}
-        await coordinator.client.async_invoke_method(device_id, method, params)
-        _LOGGER.debug("A. O. Smith invoke_method completed")
+        response = await coordinator.client.async_invoke_method(device_id, method, params)
+        _LOGGER.info("A. O. Smith invoke_method response: %s", response)
         await coordinator.async_request_refresh()
 
     async def async_set_heating(call: ServiceCall) -> None:
         coordinator = _coordinator_from_call(hass, call)
         device_id = _device_id_from_call(call, coordinator)
         product_type, device_type = _device_profile(coordinator, device_id)
-        await coordinator.client.async_set_heating_enabled(
+        enabled = call.data["enabled"]
+        response = await coordinator.client.async_set_heating_enabled(
             device_id,
-            call.data["enabled"],
+            enabled,
             product_type=product_type,
             device_type=device_type,
         )
-        _LOGGER.debug("A. O. Smith set_heating completed")
+        _LOGGER.info("A. O. Smith set_heating response: %s", response)
+        val_str = "1" if enabled else "0"
+        coordinator.async_update_device_cache(
+            device_id,
+            {
+                "centralHeating": val_str,
+                "SHC_On": val_str,
+                "heatingMode": val_str,
+                "heatingOnOff": val_str,
+                "heatOnOff": val_str,
+                "heatingEnabled": val_str,
+                "heatingSwitch": val_str,
+            },
+        )
         await coordinator.async_request_refresh()
 
     async def async_start_one_key_quick_wash(call: ServiceCall) -> None:
         coordinator = _coordinator_from_call(hass, call)
         device_id = _device_id_from_call(call, coordinator)
         product_type, device_type = _device_profile(coordinator, device_id)
-        await coordinator.client.async_start_quick_wash(
+        response = await coordinator.client.async_start_quick_wash(
             device_id,
             "one_key",
             product_type=product_type,
             device_type=device_type,
         )
-        _LOGGER.debug("A. O. Smith one-key quick wash completed")
+        _LOGGER.info("A. O. Smith one-key quick wash response: %s", response)
+        coordinator.async_update_device_cache(device_id, {"preWork": "1", "prework": "1"})
         await coordinator.async_request_refresh()
 
     async def async_start_24h_quick_wash(call: ServiceCall) -> None:
         coordinator = _coordinator_from_call(hass, call)
         device_id = _device_id_from_call(call, coordinator)
         product_type, device_type = _device_profile(coordinator, device_id)
-        await coordinator.client.async_start_quick_wash(
+        response = await coordinator.client.async_start_quick_wash(
             device_id,
             "24h",
             product_type=product_type,
             device_type=device_type,
         )
-        _LOGGER.debug("A. O. Smith 24-hour quick wash completed")
+        _LOGGER.info("A. O. Smith 24-hour quick wash response: %s", response)
+        coordinator.async_update_device_cache(device_id, {"preWork": "2", "prework": "2"})
         await coordinator.async_request_refresh()
 
     hass.services.async_register(
@@ -132,19 +148,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     data = entry.data
     options = entry.options
-    session = async_get_clientsession(hass, verify_ssl=data.get(CONF_VERIFY_SSL, True))
+    access_token = options.get(CONF_ACCESS_TOKEN, data.get(CONF_ACCESS_TOKEN))
+    verify_ssl = options.get(CONF_VERIFY_SSL, data.get(CONF_VERIFY_SSL, True))
+    session = async_get_clientsession(hass, verify_ssl=verify_ssl)
     client = AOSmithClient(
         session,
         data[CONF_BASE_URL],
         username=data.get(CONF_USERNAME),
         password=data.get(CONF_PASSWORD),
-        access_token=data.get(CONF_ACCESS_TOKEN),
+        access_token=access_token,
         family_id=data.get(CONF_FAMILY_ID),
         mobile=data.get(CONF_MOBILE),
         user_id=data.get(CONF_USER_ID),
         device_id=data.get(CONF_DEVICE_ID),
         timeout=DEFAULT_TIMEOUT,
-        verify_ssl=data.get(CONF_VERIFY_SSL, True),
+        verify_ssl=verify_ssl,
     )
     if not client.access_token and data.get(CONF_USERNAME) and data.get(CONF_PASSWORD):
         await client.async_login()
@@ -158,8 +176,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, [Platform(platform) for platform in PLATFORMS])
+    entry.async_on_unload(entry.add_update_listener(update_listener))
 
     return True
+
+
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

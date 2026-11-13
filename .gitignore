@@ -30,6 +30,7 @@ configuration.yaml
 venv/
 __pycache__/
 *.py[cod]
+/aosmith_ailink/
 .pytest_cache/
 .vscode/
 .idea/
